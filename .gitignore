@@ -1,0 +1,9 @@
+__pycache__
+.ipynb_checkpoints
+Dynamically-Generated-Hate-Speech-Dataset
+ear/
+ear_bert/
+hatecheck-data/*
+lightning_logs
+soc
+data/
