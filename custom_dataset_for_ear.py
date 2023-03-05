@@ -1,5 +1,5 @@
 """Collect and expose datasets for experiments."""
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pytorch_lightning as pl
 import torch
 import pandas as pd
@@ -26,21 +26,26 @@ AVAIL_DATASETS = (
 )
 
 
-def get_dataset_by_name(name: str, base_dir=None):
+def get_dataset_by_name(name: str, base_dir=None, config=None):
     path = os.path.join(base_dir, name) if base_dir else name
     
     train, dev, test = None, None, None
     if name in GAB_DATASETS:
-        # train = GabDataset.build_dataset(name, "train")
-        # dev = GabDataset.build_dataset(name, "dev")
-        # test = GabDataset.build_dataset(name, "test")
         train = GabDataset(f"./soc/data/majority_gab_dataset_25k/train.jsonl")
         dev = GabDataset(f"./soc/data/majority_gab_dataset_25k/dev.jsonl")
         test = GabDataset(f"./soc/data/majority_gab_dataset_25k/test.jsonl")
-    # elif name in DYNA_DATASETS:
-    #     train = DynaDataset.build_dataset(name, "train")
-    #     dev = DynaDataset.build_dataset(name, "dev")
-    #     test = DynaDataset.build_dataset(name, "test")
+    elif name in DYNA_DATASETS:
+        data = pd.read_csv('./data/Dynamically-Generated-Hate-Speech-Dataset/Dynamically Generated Hate Dataset v0.2.3.csv', index_col=0)
+        trains = []
+        devs = []
+        tests = []
+        for round in config['rounds']:
+            trains.append(DynaDataset(data[(data['split']=='train')&(data['round.base']==round)]))
+            devs.append(DynaDataset(data[(data['split']=='dev')&(data['round.base']==round)]))
+            tests.append(DynaDataset(data[(data['split']=='test')&(data['round.base']==round)]))
+        train = ConcatDataset(trains)
+        dev = ConcatDataset(devs)
+        test = ConcatDataset(tests)
     else:
         raise ValueError(f"Can't recognize dataset name {name}")
     return train, dev, test
@@ -79,12 +84,11 @@ class GabDataset(Dataset):
 
 
 class DynaDataset(Dataset):
-    def __init__(self, path: str):
-        self.path = path
-        data = pd.read_json(path, lines=True)
-        self.texts = data["Text"].tolist()
-        self.labels = (data[['cv','hd']].sum(axis=1) > 0).astype(int).tolist()
-        self.tokenized_path = get_tokenized_path(path)
+    def __init__(self, data: pd.DataFrame):
+        self.data = data
+        self.texts = data["text"].tolist()
+        self.labels = (data['label']=='hate').astype(int).to_list()
+        # self.tokenized_path = get_tokenized_path(path)
 
     def __getitem__(self, idx):
         return {"text": self.texts[idx], "label": self.labels[idx]}
@@ -98,9 +102,6 @@ class DynaDataset(Dataset):
     def get_labels(self):
         return self.labels
 
-    @classmethod
-    def build_dataset(cls, split: str):
-        return cls(f"./soc/data/majority_gab_dataset_25k/'{split}.jsonl")
 
 
 class TokenizerDataModule(pl.LightningDataModule):
