@@ -26,7 +26,7 @@ AVAIL_DATASETS = (
 )
 
 
-def get_dataset_by_name(name: str, base_dir=None, config=None):
+def get_dataset_by_name(name: str, base_dir=None, round=0):
     path = os.path.join(base_dir, name) if base_dir else name
     
     train, dev, test = None, None, None
@@ -35,17 +35,13 @@ def get_dataset_by_name(name: str, base_dir=None, config=None):
         dev = GabDataset(f"./soc/data/majority_gab_dataset_25k/dev.jsonl")
         test = GabDataset(f"./soc/data/majority_gab_dataset_25k/test.jsonl")
     elif name in DYNA_DATASETS:
-        data = pd.read_csv('./data/Dynamically-Generated-Hate-Speech-Dataset/Dynamically Generated Hate Dataset v0.2.3.csv', index_col=0)
-        trains = []
-        devs = []
-        tests = []
-        for round in config['rounds']:
-            trains.append(DynaDataset(data[(data['split']=='train')&(data['round.base']==round)]))
-            devs.append(DynaDataset(data[(data['split']=='dev')&(data['round.base']==round)]))
-            tests.append(DynaDataset(data[(data['split']=='test')&(data['round.base']==round)]))
-        train = ConcatDataset(trains)
-        dev = ConcatDataset(devs)
-        test = ConcatDataset(tests)
+        path = './data/Dynamically-Generated-Hate-Speech-Dataset/Dynamically Generated Hate Dataset v0.2.3.csv'
+        data = pd.read_csv(path, index_col=0)
+
+        train = DynaDataset(data[(data['split']=='train')&(data['round.base']==round)], path)
+        dev = DynaDataset(data[(data['split']=='dev')&(data['round.base']==round)], path)
+        test = DynaDataset(data[(data['split']=='test')&(data['round.base']==round)], path)
+
     else:
         raise ValueError(f"Can't recognize dataset name {name}")
     return train, dev, test
@@ -84,11 +80,11 @@ class GabDataset(Dataset):
 
 
 class DynaDataset(Dataset):
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, path):
         self.data = data
         self.texts = data["text"].tolist()
         self.labels = (data['label']=='hate').astype(int).to_list()
-        # self.tokenized_path = get_tokenized_path(path)
+        self.tokenized_path = get_tokenized_path(path)
 
     def __getitem__(self, idx):
         return {"text": self.texts[idx], "label": self.labels[idx]}
@@ -115,6 +111,7 @@ class TokenizerDataModule(pl.LightningDataModule):
         pin_memory,
         load_pre_tokenized=False,
         store_pre_tokenized=False,
+        round=None,
     ):
         super().__init__()
         self.dataset_name = dataset_name
@@ -125,25 +122,26 @@ class TokenizerDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.load_pre_tokenized = load_pre_tokenized
         self.store_pre_tokenized = store_pre_tokenized
+        self.round = round
 
-        self.train, self.val, self.test = get_dataset_by_name(dataset_name)
+        self.train, self.val, self.test = get_dataset_by_name(dataset_name, round=round)
         self.train_steps = int(len(self.train) / batch_size)
 
     def prepare_data(self):
         train, val, test = self.train, self.val, self.test
-
+        self.encodings_split = []
         for split in [train, val, test]:
-            if self.load_pre_tokenized and os.path.exists(split.tokenized_path):
-                logging.info(
-                    """
-                    Loading pre-tokenized dataset.
-                    Beware! Using pre-tokenized embeddings could not match you choice for max_length
-                    """
-                )
-                continue
+            # if self.load_pre_tokenized and os.path.exists(split.tokenized_path):
+            #     logging.info(
+            #         """
+            #         Loading pre-tokenized dataset.
+            #         Beware! Using pre-tokenized embeddings could not match you choice for max_length
+            #         """
+            #     )
+            #     continue
 
-            if self.load_pre_tokenized:
-                logging.info(f"Load tokenized but {split.tokenized_path} is not found")
+            # if self.load_pre_tokenized:
+            #     logging.info(f"Load tokenized but {split.tokenized_path} is not found")
 
             logger.info("Tokenizing...")
             encodings = self.tokenizer(
@@ -153,10 +151,10 @@ class TokenizerDataModule(pl.LightningDataModule):
                 max_length=self.max_seq_length,
                 return_tensors="pt",
             )
-
-            if self.store_pre_tokenized:
-                logger.info(f"Saving to {split.tokenized_path}")
-                torch.save(encodings, split.tokenized_path)
+            self.encodings_split.append(encodings)
+            # if self.store_pre_tokenized:
+            #     logger.info(f"Saving to {split.tokenized_path}")
+            #     torch.save(encodings, split.tokenized_path)
 
     def setup(self, stage=None):
         if stage == "fit":
@@ -165,11 +163,11 @@ class TokenizerDataModule(pl.LightningDataModule):
             logging.info(f"TRAIN len: {len(train)}")
             logging.info(f"VAL len: {len(val)}")
 
-            train_encodings = torch.load(train.tokenized_path)
+            train_encodings = self.encodings_split[0]
             train_labels = torch.LongTensor([r["label"] for r in train])
             self.train_data = EncodedDataset(train_encodings, train_labels)
 
-            val_encodings = torch.load(val.tokenized_path)
+            val_encodings = self.encodings_split[1]
             val_labels = torch.LongTensor([r["label"] for r in val])
             self.val_data = EncodedDataset(val_encodings, val_labels)
 
@@ -177,7 +175,7 @@ class TokenizerDataModule(pl.LightningDataModule):
             test = self.test
             logging.info(f"TEST len: {len(test)}")
 
-            test_encodings = torch.load(test.tokenized_path)
+            test_encodings = self.encodings_split[2]
             test_labels = torch.LongTensor([r["label"] for r in test])
             self.test_data = EncodedDataset(test_encodings, test_labels)
 
