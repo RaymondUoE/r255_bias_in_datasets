@@ -59,7 +59,7 @@ class DynaDataset(Dataset):
 def main():
     for seed in range(0, 10):
         run_with_seed(seed=seed)
-        break
+
 
 
 
@@ -94,7 +94,7 @@ def run_with_seed(seed):
         
         save_path = os.path.join(parent_path, f'R{round}')
         
-        src_model = [x for x in os.listdir(src_model_path) if x.startswith('PL-epoch')][0]
+        # src_model = [x for x in os.listdir(src_model_path) if x.startswith('PL-epoch')][0]
         warmup_train_perc = 0.1
         max_epochs = 20
         balanced_loss = True
@@ -121,7 +121,6 @@ def run_with_seed(seed):
             class_weights = None
         
         
-        # model = LMForSequenceClassification.load_from_checkpoint(os.path.join(src_model_path, src_model))
         model = LMForSequenceClassification(
             src_model_path,
             learning_rate=2e-5,
@@ -171,21 +170,14 @@ def run_with_seed(seed):
                     val_dataloaders=dataloader_rounds_split[round_zero_index][1], 
                     )
         
-        # data_modules[round].setup(stage='test')
         
-        # trainer = pl.Trainer(accelerator='gpu')
-        # model = LMForSequenceClassification.load_from_checkpoint(
-        #     model_checkpoint.best_model_path
-        # )
-        
-        # val_result = trainer.validate(model, dataloader_rounds_split[round_zero_index][1])
         all_tests = [dataloader_rounds_split[round_zero_index][1]] + [x[2] for x in dataloader_rounds_split]
         results = {}
         keys = [f'ValR{round}', 'TestR1', 'TestR2', 'TestR3', 'TestR4']
         for k, dataloader in zip(keys, all_tests):
             test_result = trainer.test(dataloaders=dataloader, ckpt_path="best")
             results[k] = test_result
-            
+        print(f'Saving results...{save_path}')
         with open(os.path.join(save_path, f'results.json'), 'w') as fout:
             json.dump(results, fout)
         
