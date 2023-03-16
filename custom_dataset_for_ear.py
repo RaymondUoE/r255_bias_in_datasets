@@ -3,7 +3,6 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pytorch_lightning as pl
 import torch
 import pandas as pd
-from operator import itemgetter
 import logging
 import os
 
@@ -16,14 +15,11 @@ logger = logging.getLogger(__name__)
 
 GAB_DATASETS = ["gab25k"]
 
-DYNA_DATASETS= ['dyna']
 
 
 
-AVAIL_DATASETS = (
-    GAB_DATASETS
-    + DYNA_DATASETS
-)
+AVAIL_DATASETS = GAB_DATASETS
+
 
 
 def get_dataset_by_name(name: str, base_dir=None, round=0):
@@ -34,14 +30,7 @@ def get_dataset_by_name(name: str, base_dir=None, round=0):
         train = GabDataset(f"./soc/data/majority_gab_dataset_25k/train.jsonl")
         dev = GabDataset(f"./soc/data/majority_gab_dataset_25k/dev.jsonl")
         test = GabDataset(f"./soc/data/majority_gab_dataset_25k/test.jsonl")
-    elif name in DYNA_DATASETS:
-        path = './data/Dynamically-Generated-Hate-Speech-Dataset/Dynamically Generated Hate Dataset v0.2.3.csv'
-        data = pd.read_csv(path, index_col=0)
-
-        train = DynaDataset(data[(data['split']=='train')&(data['round.base']==round)], path)
-        dev = DynaDataset(data[(data['split']=='dev')&(data['round.base']==round)], path)
-        test = DynaDataset(data[(data['split']=='test')&(data['round.base']==round)], path)
-
+    
     else:
         raise ValueError(f"Can't recognize dataset name {name}")
     return train, dev, test
@@ -79,25 +68,6 @@ class GabDataset(Dataset):
     #     return cls(f"./soc/data/majority_gab_dataset_25k/'{split}.jsonl")
 
 
-class DynaDataset(Dataset):
-    def __init__(self, data: pd.DataFrame, path):
-        self.data = data
-        self.texts = data["text"].tolist()
-        self.labels = (data['label']=='hate').astype(int).to_list()
-        self.tokenized_path = get_tokenized_path(path)
-
-    def __getitem__(self, idx):
-        return {"text": self.texts[idx], "label": self.labels[idx]}
-
-    def __len__(self):
-        return len(self.labels)
-
-    def get_texts(self):
-        return self.texts
-
-    def get_labels(self):
-        return self.labels
-
 
 
 class TokenizerDataModule(pl.LightningDataModule):
@@ -131,18 +101,6 @@ class TokenizerDataModule(pl.LightningDataModule):
         train, val, test = self.train, self.val, self.test
         self.encodings_split = []
         for split in [train, val, test]:
-            # if self.load_pre_tokenized and os.path.exists(split.tokenized_path):
-            #     logging.info(
-            #         """
-            #         Loading pre-tokenized dataset.
-            #         Beware! Using pre-tokenized embeddings could not match you choice for max_length
-            #         """
-            #     )
-            #     continue
-
-            # if self.load_pre_tokenized:
-            #     logging.info(f"Load tokenized but {split.tokenized_path} is not found")
-
             logger.info("Tokenizing...")
             encodings = self.tokenizer(
                 split.get_texts(),
@@ -152,9 +110,6 @@ class TokenizerDataModule(pl.LightningDataModule):
                 return_tensors="pt",
             )
             self.encodings_split.append(encodings)
-            # if self.store_pre_tokenized:
-            #     logger.info(f"Saving to {split.tokenized_path}")
-            #     torch.save(encodings, split.tokenized_path)
 
     def setup(self, stage=None):
         if stage == "fit":

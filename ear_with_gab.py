@@ -1,22 +1,14 @@
 import os
-import glob
 import click
 import logging
 
-import comet_ml
 
 from custom_dataset_for_ear import get_dataset_by_name, TokenizerDataModule
-import IPython
-import pdb
 
-import numpy as np
+
 import torch
-from torch import nn
-from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
 import pytorch_lightning as pl
 # import pytorch_lightning.metrics.functional as plf
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import torchmetrics
 from transformers import (
     AutoModelForSequenceClassification,
@@ -434,29 +426,6 @@ def main(
     tokenizer = AutoTokenizer.from_pretrained(src_model)
 
 
-    # logging.info("Tokenizing sets...")
-    # tok_train = TokenizedDataset(train, tokenizer, max_seq_length, load_tokenized=True)
-    # tok_val = TokenizedDataset(val, tokenizer, max_seq_length, load_tokenized=True)
-    # tok_test = TokenizedDataset(test, tokenizer, max_seq_length, load_tokenized=True)
-    # logging.info("Tokenization completed")
-
-    # logging.info(f"TRAIN: {len(tok_train)}")
-    # logging.info(f"VAL: {len(tok_val)}")
-    # logging.info(f"TEST: {len(tok_test)}")
-
-    # train_loader = DataLoader(
-    #     tok_train,
-    #     batch_size=batch_size,
-    #     num_workers=num_workers,
-    #     pin_memory=True,
-    #     shuffle=True,
-    # )
-    # val_loader = DataLoader(
-    #     tok_val, batch_size=batch_size, num_workers=num_workers, pin_memory=True
-    # )
-    # test_loader = DataLoader(
-    #     tok_test, batch_size=batch_size, num_workers=num_workers, pin_memory=True
-    # )
 
     dataset_module = TokenizerDataModule(
         dataset_name=training_dataset,
@@ -581,13 +550,6 @@ def main(
         )
         best_PL.get_backbone().save_pretrained(model_dir)
         tokenizer.save_pretrained(model_dir)
-
-    #  TODO resume_from_checkpoint logic
-    #  logger.info("Simulation completed. Removing last.ckpt...")
-    #  if early_stop_epochs > 0:
-    #      if os.path.exists(os.path.join(model_dir, "last.ckpt")):
-    #          os.remove(os.path.join(model_dir, "last.ckpt"))
-    #          logger.info("Last checkpoint removed.")
 
 
 if __name__ == "__main__":

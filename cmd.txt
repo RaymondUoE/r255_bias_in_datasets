@@ -1,3 +1,0 @@
-./train_model_cust_data_10_seeds.sh bert-base-uncased ./ear_bert gab25k
-
-./train_dyna_ear.sh ./ear_bert ./ear_bert/R1 dyna
