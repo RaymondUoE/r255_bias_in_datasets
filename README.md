@@ -1,5 +1,6 @@
 
 # r255_bias_in_datasets
+This repository supports the coursework submission of R255 Advanced Topics in Machine Learning - Bias in Datasets at the University of Cambridge, 2022/23 academic year.
 
 ## Requirements: 
 The following repos must be cloned to current directory:
