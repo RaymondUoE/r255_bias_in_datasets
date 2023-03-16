@@ -8,7 +8,8 @@ The following repos must be cloned to current directory:
  - https://github.com/BrendanKennedy/contextualizing-hate-speech-models-with-explanations (Kennedy et al., 2020)
  - https://github.com/paul-rottger/hatecheck-data (Rottger et al., 2021)
  - https://github.com/g8a9/ear (Attanasio et al., 2022)
-	(the folder `contextualizing-hate-speech-models-with-explanations` needs to be renamed as `soc`)
+
+(the folder `contextualizing-hate-speech-models-with-explanations` needs to be renamed as `soc`)
 
 ## To run SOC with GHC data
 follow the instructions in Kennedy et al.'s repository.
